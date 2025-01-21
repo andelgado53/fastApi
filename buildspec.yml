@@ -4,6 +4,7 @@ phases:
   install:
     runtime-versions:
       python: 3.x  # Use the appropriate Python version
+      nodejs: 16
     commands:
       - npm install -g aws-cdk   # Install AWS CDK globally
       - cdk --version             # Verify CDK installation
