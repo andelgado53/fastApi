@@ -2,7 +2,7 @@ from aws_cdk import (
     aws_ecs as ecs,
     aws_ec2 as ec2,
     aws_ecs_patterns as ecs_patterns,
-    Stack,
+    Stack, Duration
 )
 from constructs import Construct
 
@@ -28,14 +28,18 @@ class ECSStack(Stack):
         cluster = ecs.Cluster(self, "FastApiCluster", vpc=vpc)
 
         # Fargate Service with Load Balancer
-        ecs_patterns.ApplicationLoadBalancedFargateService(
+        service = ecs_patterns.ApplicationLoadBalancedFargateService(
             self,
             "FastApiFargateService",
             cluster=cluster,
             task_definition=task_definition,
-            public_load_balancer=True,
-            health_check={
-                "port": "8000",  # Make sure the health check is on port 8000
-                "path": "/",  # Your health check path, if you have one
-            }
+            public_load_balancer=True
         )
+
+        # Configure the health check for the service
+        service.target_group.configure_health_check(
+        path="/",  # Health check path
+        port="8000",     # The container port for the health check
+        interval=Duration.seconds(30),  # Optional: health check interval
+        timeout=Duration.seconds(5),    # Optional: timeout for health check
+        )   
