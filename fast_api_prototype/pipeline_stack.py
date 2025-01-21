@@ -11,7 +11,7 @@ class PipelineStack(Stack):
 
         # Define GitHub source connection
         source = pipelines.CodePipelineSource.connection(
-            "delandre/fastApi",  # Replace with your repo
+            "andelgado53/fastApi",  # Replace with your repo
             "master",
             connection_arn="arn:aws:codeconnections:us-west-2:385249579775:connection/acd4b90d-7dfa-4f19-aad5-b68d9b524840"
         )
