@@ -1,0 +1,23 @@
+version: 0.2
+
+phases:
+  install:
+    runtime-versions:
+      python: 3.x  # Use the appropriate Python version
+    commands:
+      - npm install -g aws-cdk   # Install AWS CDK globally
+      - cdk --version             # Verify CDK installation
+      - pip install -r requirements.txt   # Install Python dependencies
+
+  build:
+    commands:
+      - cdk synth  # Generate the CloudFormation template
+
+  post_build:
+    commands:
+      - echo "Build completed"  # You can add deployment steps here if needed
+
+artifacts:
+  files:
+    - '**/*'  # Include all files from the current directory
+  base-directory: cdk.out  # Upload the CloudFormation templates from the CDK output directory
