@@ -13,6 +13,17 @@ class ECSStack(Stack):
         # VPC
         vpc = ec2.Vpc(self, "FastApiVpc", max_azs=2)
 
+        task_definition = ecs.FargateTaskDefinition(self, "FastApiTaskDefinition")
+
+        container = task_definition.add_container(
+            "FastApiContainer",
+            image=ecs.ContainerImage.from_asset("./app"),
+            memory_limit_mib=512,
+            cpu=256,
+            logging=ecs.LogDrivers.aws_logs(stream_prefix="MyFastApiApp")
+        )
+        container.add_port_mappings(ecs.PortMapping(container_port=8000))
+
         # ECS Cluster
         cluster = ecs.Cluster(self, "FastApiCluster", vpc=vpc)
 
@@ -21,8 +32,10 @@ class ECSStack(Stack):
             self,
             "FastApiFargateService",
             cluster=cluster,
-            task_image_options=ecs_patterns.ApplicationLoadBalancedTaskImageOptions(
-                image=ecs.ContainerImage.from_asset("./app")  # Path to Dockerfile
-            ),
+            task_definition=task_definition,
             public_load_balancer=True,
+            health_check={
+                "port": "8000",  # Make sure the health check is on port 8000
+                "path": "/",  # Your health check path, if you have one
+            }
         )
