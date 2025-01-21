@@ -25,8 +25,10 @@ class PipelineStack(Stack):
                 input=source,
                 commands=[
                     "pip install -r requirements.txt",
-                     "npm install -g aws-cdk",
-                    "cdk synth"
+                    "npm install -g aws-cdk",  # Install CDK CLI
+                    "which cdk",  # Verify that cdk is installed
+                    "cdk --version",  # Verify CDK version
+                    "cdk synth"  # Generate CloudFormation templates
                 ],
             ),
         )
