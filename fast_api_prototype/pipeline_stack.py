@@ -25,6 +25,7 @@ class PipelineStack(Stack):
                 input=source,
                 commands=[
                     "pip install -r requirements.txt",
+                     "npm install -g aws-cdk",
                     "cdk synth"
                 ],
             ),
