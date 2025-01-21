@@ -6,13 +6,23 @@ phases:
       python: 3.x  # Use the appropriate Python version
       nodejs: 16
     commands:
-      - npm install -g aws-cdk   # Install AWS CDK globally
-      - cdk --version             # Verify CDK installation
-      - pip install -r requirements.txt   # Install Python dependencies
-
+       # Verify Node.js version to ensure compatibility
+      - node -v
+      # Install AWS CDK globally
+      - npm install -g aws-cdk
+      # Verify CDK installation
+      - cdk --version
+      # Install Python dependencies
+      - pip install -r requirements.txt
   build:
     commands:
-      - cdk synth  # Generate the CloudFormation template
+      # Echo environment variables to verify the environment setup
+      - echo "CDK version: $(cdk --version)"
+      - echo "Current directory: $(pwd)"
+      - echo "Listing files in the directory:"
+      - ls -l
+      # Run CDK synth to generate the CloudFormation template
+      - cdk synth
 
   post_build:
     commands:
