@@ -12,7 +12,7 @@ def root():
 	<head>
   	<meta charset="UTF-8">
   	<meta name="viewport" content="width=device-width, initial-scale=1.0">
-  	<title>Emi is a bug</title>
+  	<title>Emi Sofia</title>
   	<style>
     body {
       font-family: Arial, sans-serif;
@@ -28,7 +28,7 @@ def root():
   	</style>
 	</head>
 	<body>
-  	<h1>Emi is a bug</h1>
+  	<h1>This is not a bug. This is Emi</h1>
   	<img src="https://emisofia.s3.us-west-2.amazonaws.com/emi_love_bug.jpg" alt="Image from S3">
   	<p>Emi</p>
 	</body>
