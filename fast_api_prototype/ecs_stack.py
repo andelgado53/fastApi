@@ -52,8 +52,8 @@ class ECSStack(Stack):
         timeout=Duration.seconds(5),    # Optional: timeout for health check
         ) 
 
-        # Route 53 Record
-        route53.ARecord(self, "AliasRecord",
-            zone=hosted_zone,
-            target=route53.RecordTarget.from_alias(targets.LoadBalancerTarget(service.load_balancer))
-        )
+        # # Route 53 Record
+        # route53.ARecord(self, "AliasRecord",
+        #     zone=hosted_zone,
+        #     target=route53.RecordTarget.from_alias(targets.LoadBalancerTarget(service.load_balancer))
+        # )
