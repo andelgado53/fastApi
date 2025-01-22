@@ -34,9 +34,9 @@ class PipelineStack(Stack):
         )
 
         # Add the ECS deployment stage
-        pipeline.add_stage(ECSDeploymentStage(self, "DeployECS", env))
+        pipeline.add_stage(ECSDeploymentStage(self, "DeployECS", **kwargs))
 
 class ECSDeploymentStage(Stage):
     def __init__(self, scope: Construct, id: str, **kwargs):
         super().__init__(scope, id, **kwargs)
-        ECSStack(self, "ECSStack", env)
+        ECSStack(self, "ECSStack")

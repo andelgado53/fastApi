@@ -1,0 +1,12 @@
+{
+  "hosted-zone:account=385249579775:domainName=emisofia.com:region=us-west-2": {
+    "Id": "/hostedzone/Z02209953JG5UQE7VSG7",
+    "Name": "emisofia.com."
+  },
+  "availability-zones:account=385249579775:region=us-west-2": [
+    "us-west-2a",
+    "us-west-2b",
+    "us-west-2c",
+    "us-west-2d"
+  ]
+}
