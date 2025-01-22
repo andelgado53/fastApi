@@ -2,7 +2,7 @@ from aws_cdk import (
     aws_ecs as ecs,
     aws_ec2 as ec2,
     aws_ecs_patterns as ecs_patterns,
-    Stack, Duration, aws_certificate_manager as acm,
+    Stack, Duration, aws_certificatemanager as acm,
     aws_route53 as route53
 )
 from constructs import Construct
