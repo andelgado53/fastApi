@@ -41,7 +41,7 @@ class ECSStack(Stack):
             task_definition=task_definition,
             public_load_balancer=True,
             certificate=certificate,
-            domain_name="example.com",
+            domain_name="emisofia.com",
             domain_zone=hosted_zone
         )
 
