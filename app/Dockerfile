@@ -1,4 +1,4 @@
-FROM 385249579775.dkr.ecr.us-west-2.amazonaws.com/python3:latest
+FROM public.ecr.aws/docker/library/python:3.11-slim
 
 # Set the working directory in the container
 WORKDIR /fastApiTest

@@ -1,6 +1,9 @@
 version: 0.2
 
 phases:
+  pre_build:
+    commands:
+      - aws ecr get-login-password --region us-west-2 | docker login --username AWS --password-stdin 385249579775.dkr.ecr.us-west-2.amazonaws.com
   install:
     runtime-versions:
       python: 3.x  # Use the appropriate Python version
