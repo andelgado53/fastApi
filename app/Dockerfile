@@ -1,5 +1,4 @@
-# Use an official Python runtime as a parent image
-FROM python:3.11-slim
+FROM 385249579775.dkr.ecr.us-west-2.amazonaws.com/python3:latest
 
 # Set the working directory in the container
 WORKDIR /fastApiTest
