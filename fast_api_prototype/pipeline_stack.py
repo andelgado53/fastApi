@@ -29,6 +29,8 @@ class PipelineStack(Stack):
                     "which cdk",  # Verify that cdk is installed
                     "cdk --version",  # Verify CDK version
                     "cdk synth"  # Generate CloudFormation templates
+                    "aws ecr get-login-password --region us-west-2 | docker login --username AWS --password-stdin 385249579775.dkr.ecr.us-west-2.amazonaws.com"
+
                 ],
             ),
         )
