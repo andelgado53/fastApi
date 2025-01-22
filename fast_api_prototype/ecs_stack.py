@@ -2,7 +2,8 @@ from aws_cdk import (
     aws_ecs as ecs,
     aws_ec2 as ec2,
     aws_ecs_patterns as ecs_patterns,
-    Stack, Duration
+    Stack, Duration, aws_certificate_manager as acm,
+    aws_route53 as route53
 )
 from constructs import Construct
 
@@ -10,7 +11,13 @@ class ECSStack(Stack):
     def __init__(self, scope: Construct, id: str, **kwargs):
         super().__init__(scope, id, **kwargs)
 
-        # VPC
+        hosted_zone = route53.HostedZone.from_lookup(self, "HostedZone", domain_name="emisofia.com")
+
+        certificate = acm.Certificate(self, "Certificate",
+            domain_name="emisofia.com",
+            validation=acm.CertificateValidation.from_dns(hosted_zone)
+        )
+
         vpc = ec2.Vpc(self, "FastApiVpc", max_azs=2)
 
         task_definition = ecs.FargateTaskDefinition(self, "FastApiTaskDefinition")
@@ -24,22 +31,28 @@ class ECSStack(Stack):
         )
         container.add_port_mappings(ecs.PortMapping(container_port=8000))
 
-        # ECS Cluster
         cluster = ecs.Cluster(self, "FastApiCluster", vpc=vpc)
 
-        # Fargate Service with Load Balancer
         service = ecs_patterns.ApplicationLoadBalancedFargateService(
             self,
             "FastApiFargateService",
             cluster=cluster,
             task_definition=task_definition,
-            public_load_balancer=True
+            public_load_balancer=True,
+            certificate=certificate,
+            domain_name="example.com",
+            domain_zone=hosted_zone
         )
 
-        # Configure the health check for the service
         service.target_group.configure_health_check(
-        path="/",  # Health check path
+        path="/healthy",  # Health check path
         port="8000",     # The container port for the health check
         interval=Duration.seconds(30),  # Optional: health check interval
         timeout=Duration.seconds(5),    # Optional: timeout for health check
-        )   
+        ) 
+
+        # Route 53 Record
+        route53.ARecord(self, "AliasRecord",
+            zone=hosted_zone,
+            target=route53.RecordTarget.from_alias(targets.LoadBalancerTarget(service.load_balancer))
+        )
