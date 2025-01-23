@@ -1,11 +1,13 @@
 from aws_cdk import (
-    aws_ecs as ecs,
     aws_ec2 as ec2,
-    aws_ecs_patterns as ecs_patterns,
-    Stack, Duration, aws_certificatemanager as acm,
+    aws_ecs as ecs,
+    aws_elasticloadbalancingv2 as elbv2,
+    aws_certificatemanager as acm,
+    aws_apigatewayv2_alpha as apigateway,
+    aws_apigatewayv2_integrations_alpha as integrations_alpha,
     aws_route53 as route53,
-    aws_route53_targets as targets,
-    aws_apigateway as apigw,
+    Duration,
+    Stack,
 )
 from constructs import Construct
 
@@ -13,78 +15,88 @@ class ECSStack(Stack):
     def __init__(self, scope: Construct, id: str, **kwargs):
         super().__init__(scope, id, **kwargs)
 
-        hosted_zone = route53.HostedZone.from_lookup(self, "HostedZone", domain_name="emisofia.com")
-
-        alb_certificate = acm.Certificate(
-            self, "AlbCertificate",
-            domain_name="emisofia.com",
-            validation=acm.CertificateValidation.from_dns(hosted_zone)
+        # Hosted Zone for Domain
+        hosted_zone = route53.HostedZone.from_lookup(
+            self, "HostedZone", domain_name="emisofia.com"
         )
 
+        # API Gateway Certificate
         api_certificate = acm.Certificate(
-            self, "ApiGatewayCertificate",
+            self,
+            "ApiGatewayCertificate",
             domain_name="api.emisofia.com",
-            validation=acm.CertificateValidation.from_dns(hosted_zone)
+            validation=acm.CertificateValidation.from_dns(hosted_zone),
         )
 
+        # VPC
         vpc = ec2.Vpc(self, "FastApiVpc", max_azs=2)
 
+        # ECS Task Definition
         task_definition = ecs.FargateTaskDefinition(self, "FastApiTaskDefinition")
-
         container = task_definition.add_container(
             "FastApiContainer",
             image=ecs.ContainerImage.from_asset("./app"),
             memory_limit_mib=512,
             cpu=256,
-            logging=ecs.LogDrivers.aws_logs(stream_prefix="MyFastApiApp")
+            logging=ecs.LogDrivers.aws_logs(stream_prefix="MyFastApiApp"),
         )
         container.add_port_mappings(ecs.PortMapping(container_port=8000))
 
+        # ECS Cluster and Service
         cluster = ecs.Cluster(self, "FastApiCluster", vpc=vpc)
+        service = ecs.FargateService(
+            self, "MyFargateService", cluster=cluster, task_definition=task_definition
+        )
 
-        service = ecs_patterns.ApplicationLoadBalancedFargateService(
+        # Network Load Balancer
+        nlb = elbv2.NetworkLoadBalancer(
+            self, "MyNLB", vpc=vpc, internet_facing=False
+        )
+        listener = nlb.add_listener(
+            "Listener",
+            port=80,
+            default_target_groups=[
+                elbv2.NetworkTargetGroup(
+                    self,
+                    "EcsTargetGroup",
+                    vpc=vpc,
+                    port=8000,
+                    targets=[service],
+                    health_check=elbv2.HealthCheck(
+                        path="/healthy",
+                        interval=Duration.seconds(30),
+                        timeout=Duration.seconds(5),
+                    ),
+                )
+            ],
+        )
+
+        # API Gateway Domain Name
+        domain_name = apigateway.DomainName(
             self,
-            "FastApiFargateService",
-            cluster=cluster,
-            task_definition=task_definition,
-            public_load_balancer=False,
-            certificate=alb_certificate
+            "ApiGatewayDomain",
+            domain_name="api.emisofia.com",
+            certificate=api_certificate,
         )
 
-        # Restrict ALB Access with Security Group
-        service.load_balancer.connections.allow_from(
-            ec2.Peer.ipv4(vpc.vpc_cidr_block),
-            ec2.Port.tcp(443),  # Only allow HTTPS traffic
-            "Allow traffic from API Gateway"
-        )
-
-         # API Gateway with Custom Domain Name
-        api = apigw.RestApi(
+        # API Gateway with Domain Mapping
+        http_api = apigateway.HttpApi(
             self,
-            "FastApiGateway",
-            domain_name=apigw.DomainNameOptions(
-                domain_name="api.emisofia.com",
-                certificate=api_certificate
-            )
+            "MyHttpApi",
+            default_domain_mapping=apigateway.DomainMappingOptions(
+                domain_name=domain_name,
+            ),
         )
 
-         # Proxy API Gateway requests to ALB
-        integration = apigw.HttpIntegration(
-            f"https://{service.load_balancer.load_balancer_dns_name}",
-            http_method="ANY",
-            options=apigw.IntegrationOptions(
-                connection_type=apigw.ConnectionType.VPC_LINK,
-                vpc_link=apigw.VpcLink(self, "VpcLink", targets=[service.load_balancer])
-            )
+        # HTTP Integration to NLB
+        integration = integrations_alpha.HttpUrlIntegration(
+            "NLBIntegration",
+            url=f"http://{nlb.load_balancer_dns_name}",
         )
 
-        # Add API Resource
-        api.root.add_method("ANY", integration)
-
-        service.target_group.configure_health_check(
-        path="/healthy",
-        port="8000",
-        interval=Duration.seconds(30),
-        timeout=Duration.seconds(5),
-        ) 
-
+        # Add Routes to API Gateway
+        http_api.add_routes(
+            path="/{proxy+}",
+            methods=[apigateway.HttpMethod.GET, apigateway.HttpMethod.POST],
+            integration=integration,
+        )
