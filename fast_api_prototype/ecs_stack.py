@@ -18,7 +18,25 @@ class ECSStack(Stack):
         super().__init__(scope, id, **kwargs)
 
         # VPC Configuration
-        vpc = ec2.Vpc(self, "FastApiVpc", max_azs=2, nat_gateways=1)
+        vpc = ec2.Vpc(
+            self, "FastApiVpc",
+            max_azs=2,
+            nat_gateways=1,
+            subnet_configuration=[
+                ec2.SubnetConfiguration(
+                    name="Public",
+                    subnet_type=ec2.SubnetType.PUBLIC,
+                    cidr_mask=24
+                ),
+                ec2.SubnetConfiguration(
+                    name="Private",
+                    subnet_type=ec2.SubnetType.PRIVATE_WITH_EGRESS,
+                    cidr_mask=24
+                )
+            ]
+        )
+
+    
 
         # Lookup the hosted zone
         hosted_zone = route53.HostedZone.from_lookup(
@@ -56,14 +74,30 @@ class ECSStack(Stack):
 
         # ECS Cluster and Service
         cluster = ecs.Cluster(self, "FastApiCluster", vpc=vpc)
+
+        # Add after creating the service
+        service_security_group = ec2.SecurityGroup(
+            self, "ServiceSecurityGroup",
+            vpc=vpc,
+            description="Security group for Fargate service"
+        )
+
+        service_security_group.add_ingress_rule(
+            peer=ec2.Peer.ipv4(vpc.vpc_cidr_block),
+        connection=ec2.Port.tcp(8000),
+        description="Allow TCP traffic for main communication"
+        )
+
         
         service = ecs.FargateService(
             self, "MyFargateService",
             cluster=cluster,
             task_definition=task_definition,
             desired_count=1,  # Add desired count
-            vpc_subnets=ec2.SubnetSelection(subnet_type=ec2.SubnetType.PRIVATE_WITH_EGRESS)
+            vpc_subnets=ec2.SubnetSelection(subnet_type=ec2.SubnetType.PRIVATE_WITH_EGRESS),
+            security_groups=[service_security_group]
         )
+
 
         # NLB Configuration
         nlb = elbv2.NetworkLoadBalancer(
@@ -81,7 +115,7 @@ class ECSStack(Stack):
             protocol=elbv2.Protocol.TCP,
             targets=[service],
             health_check=elbv2.HealthCheck(
-                path="/healthy",  # Assuming your health check endpoint is /healthy
+                path="/healthy",
                 port="8000",
                 protocol=elbv2.Protocol.HTTP,  # Use HTTP protocol
                 interval=Duration.seconds(30),
@@ -91,7 +125,13 @@ class ECSStack(Stack):
         )
 
         # Create VPC Link
-        vpc_link = apigateway.VpcLink(self, "VpcLink", vpc=vpc)
+        vpc_link = apigateway.VpcLink(
+            self, "VpcLink",
+            vpc=vpc,
+            subnets=ec2.SubnetSelection(
+            subnet_type=ec2.SubnetType.PRIVATE_WITH_EGRESS
+            )
+        )
 
         # Create HTTP API
         http_api = apigateway.HttpApi(self, "FastApiHttpApi", api_name="FastApiHttpApi")
