@@ -6,11 +6,10 @@ from aws_cdk import (
     aws_apigatewayv2 as apigateway,
     aws_apigatewayv2_integrations as apigateway_integrations,
     aws_route53 as route53,
-    aws_route53_targets as targets,  # Added missing import
-    aws_apigatewayv2_integrations as apigateway_integrations,  # Added for VPC link integration
+    aws_route53_targets as targets,
     Duration,
     Stack,
-    CfnOutput  # Added for helpful outputs
+    CfnOutput
 )
 from constructs import Construct
 
@@ -19,15 +18,11 @@ class ECSStack(Stack):
         super().__init__(scope, id, **kwargs)
 
         # VPC Configuration
-        vpc = ec2.Vpc(self, "FastApiVpc", 
-            max_azs=2,
-            nat_gateways=1
-        )
+        vpc = ec2.Vpc(self, "FastApiVpc", max_azs=2, nat_gateways=1)
 
         # Lookup the hosted zone
         hosted_zone = route53.HostedZone.from_lookup(
-            self, "HostedZone", 
-            domain_name="emisofia.com"
+            self, "HostedZone", domain_name="emisofia.com"
         )
 
         # Certificate for API Gateway
@@ -66,8 +61,8 @@ class ECSStack(Stack):
             self, "MyFargateService",
             cluster=cluster,
             task_definition=task_definition,
-            desired_count=2,  # Add desired count
-            vpc_subnets=ec2.SubnetSelection(subnet_type=ec2.SubnetType.PRIVATE_WITH_NAT)
+            desired_count=1,  # Add desired count
+            vpc_subnets=ec2.SubnetSelection(subnet_type=ec2.SubnetType.PRIVATE_WITH_EGRESS)
         )
 
         # NLB Configuration
@@ -75,7 +70,7 @@ class ECSStack(Stack):
             self, "FastApiNLB",
             vpc=vpc,
             internet_facing=False,
-            cross_zone_enabled=True  # Enable cross-zone load balancing
+            cross_zone_enabled=True
         )
 
         # Target Group
@@ -86,8 +81,9 @@ class ECSStack(Stack):
             protocol=elbv2.Protocol.TCP,
             targets=[service],
             health_check=elbv2.HealthCheck(
+                path="/healthy",  # Assuming your health check endpoint is /healthy
                 port="8000",
-                protocol=elbv2.Protocol.TCP,
+                protocol=elbv2.Protocol.HTTP,  # Use HTTP protocol
                 interval=Duration.seconds(30),
                 healthy_threshold_count=2,
                 unhealthy_threshold_count=2
@@ -95,18 +91,12 @@ class ECSStack(Stack):
         )
 
         # Create VPC Link
-        vpc_link = apigateway.VpcLink(
-            self, "VpcLink",
-            vpc=vpc
-        )
+        vpc_link = apigateway.VpcLink(self, "VpcLink", vpc=vpc)
 
         # Create HTTP API
-        http_api = apigateway.HttpApi(
-            self, "FastApiHttpApi",
-            api_name="FastApiHttpApi"
-        )
+        http_api = apigateway.HttpApi(self, "FastApiHttpApi", api_name="FastApiHttpApi")
 
-        # NLB Listener - store the reference
+        # NLB Listener
         nlb_listener = nlb.add_listener(
             "Listener",
             port=80,
@@ -117,7 +107,7 @@ class ECSStack(Stack):
         # Create the integration
         integration = apigateway_integrations.HttpNlbIntegration(
             "NlbIntegration",
-            listener=nlb_listener,  # Assuming this is your NLB listener
+            listener=nlb_listener,
             vpc_link=vpc_link
         )
 
@@ -159,7 +149,7 @@ class ECSStack(Stack):
         # Outputs
         CfnOutput(
             self, "ApiGatewayUrl",
-            value=http_api.url if http_api.url else "undefined",
+            value=http_api.url or "undefined",
             description="API Gateway URL"
         )
 
