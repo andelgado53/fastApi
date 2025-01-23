@@ -4,10 +4,13 @@ from aws_cdk import (
     aws_elasticloadbalancingv2 as elbv2,
     aws_certificatemanager as acm,
     aws_apigatewayv2 as apigateway,
-    aws_apigatewayv2_integrations as integrations,
+    aws_apigatewayv2_integrations as apigateway_integrations,
     aws_route53 as route53,
+    aws_route53_targets as targets,  # Added missing import
+    aws_apigatewayv2_integrations as apigateway_integrations,  # Added for VPC link integration
     Duration,
     Stack,
+    CfnOutput  # Added for helpful outputs
 )
 from constructs import Construct
 
@@ -15,101 +18,159 @@ class ECSStack(Stack):
     def __init__(self, scope: Construct, id: str, **kwargs):
         super().__init__(scope, id, **kwargs)
 
-        # Hosted Zone for Domain
+        # VPC Configuration
+        vpc = ec2.Vpc(self, "FastApiVpc", 
+            max_azs=2,
+            nat_gateways=1
+        )
+
+        # Lookup the hosted zone
         hosted_zone = route53.HostedZone.from_lookup(
-            self, "HostedZone", domain_name="emisofia.com"
+            self, "HostedZone", 
+            domain_name="emisofia.com"
         )
 
-        # API Gateway Certificate
+        # Certificate for API Gateway
         api_certificate = acm.Certificate(
-            self,
-            "ApiGatewayCertificate",
+            self, "ApiGatewayCertificate",
             domain_name="api.emisofia.com",
-            validation=acm.CertificateValidation.from_dns(hosted_zone),
+            validation=acm.CertificateValidation.from_dns(hosted_zone)
         )
 
-        # VPC
-        vpc = ec2.Vpc(self, "FastApiVpc", max_azs=2)
-
-        # ECS Task Definition
-        task_definition = ecs.FargateTaskDefinition(self, "FastApiTaskDefinition")
+        # ECS Task Definition with container health check
+        task_definition = ecs.FargateTaskDefinition(
+            self, "FastApiTaskDefinition",
+            memory_limit_mib=512,
+            cpu=256
+        )
+        
         container = task_definition.add_container(
             "FastApiContainer",
             image=ecs.ContainerImage.from_asset("./app"),
             memory_limit_mib=512,
             cpu=256,
             logging=ecs.LogDrivers.aws_logs(stream_prefix="MyFastApiApp"),
+            health_check={
+                "command": ["CMD-SHELL", "curl -f http://localhost:8000/healthy || exit 1"],
+                "interval": Duration.seconds(30),
+                "timeout": Duration.seconds(5),
+                "retries": 3
+            }
         )
         container.add_port_mappings(ecs.PortMapping(container_port=8000))
 
         # ECS Cluster and Service
         cluster = ecs.Cluster(self, "FastApiCluster", vpc=vpc)
+        
         service = ecs.FargateService(
-            self, "MyFargateService", cluster=cluster, task_definition=task_definition
+            self, "MyFargateService",
+            cluster=cluster,
+            task_definition=task_definition,
+            desired_count=2,  # Add desired count
+            vpc_subnets=ec2.SubnetSelection(subnet_type=ec2.SubnetType.PRIVATE_WITH_NAT)
         )
 
-        # Network Load Balancer
+        # NLB Configuration
         nlb = elbv2.NetworkLoadBalancer(
-            self, "MyNLB", vpc=vpc, internet_facing=False
+            self, "FastApiNLB",
+            vpc=vpc,
+            internet_facing=False,
+            cross_zone_enabled=True  # Enable cross-zone load balancing
         )
 
-        listener = nlb.add_listener(
+        # Target Group
+        target_group = elbv2.NetworkTargetGroup(
+            self, "EcsTargetGroup",
+            vpc=vpc,
+            port=8000,
+            protocol=elbv2.Protocol.TCP,
+            targets=[service],
+            health_check=elbv2.HealthCheck(
+                port="8000",
+                protocol=elbv2.Protocol.TCP,
+                interval=Duration.seconds(30),
+                healthy_threshold_count=2,
+                unhealthy_threshold_count=2
+            )
+        )
+
+        # Create VPC Link
+        vpc_link = apigateway.VpcLink(
+            self, "VpcLink",
+            vpc=vpc
+        )
+
+        # Create HTTP API
+        http_api = apigateway.HttpApi(
+            self, "FastApiHttpApi",
+            api_name="FastApiHttpApi"
+        )
+
+        # NLB Listener - store the reference
+        nlb_listener = nlb.add_listener(
             "Listener",
             port=80,
-            default_target_groups=[
-                elbv2.NetworkTargetGroup(
-                    self,
-                    "EcsTargetGroup",
-                    vpc=vpc,
-                    port=8000,
-                    targets=[service],
-                    health_check=elbv2.HealthCheck(
-                        interval=Duration.seconds(30),
-                        timeout=Duration.seconds(5),
-                    ),
-                )
-            ],
+            protocol=elbv2.Protocol.TCP,
+            default_target_groups=[target_group]
         )
 
-        domain_name = apigateway.CfnDomainName(
-            self,
-            "ApiGatewayDomain",
+        # Create the integration
+        integration = apigateway_integrations.HttpNlbIntegration(
+            "NlbIntegration",
+            listener=nlb_listener,  # Assuming this is your NLB listener
+            vpc_link=vpc_link
+        )
+
+        # Add routes with the integration
+        http_api.add_routes(
+            path="/{proxy+}",
+            methods=[apigateway.HttpMethod.ANY],
+            integration=integration
+        )
+
+        # Custom domain configuration
+        domain_name = apigateway.DomainName(
+            self, "ApiDomain",
             domain_name="api.emisofia.com",
-            domain_name_configurations=[
-                apigateway.CfnDomainName.DomainNameConfigurationProperty(
-                    certificate_arn=api_certificate.certificate_arn,
-                    endpoint_type="REGIONAL",
+            certificate=api_certificate
+        )
+
+        # API mapping
+        apigateway.ApiMapping(
+            self, "ApiMapping",
+            api=http_api,
+            domain_name=domain_name,
+            stage=http_api.default_stage
+        )
+
+        # DNS record for the API Gateway domain
+        route53.ARecord(
+            self, "ApiARecord",
+            zone=hosted_zone,
+            record_name="api",
+            target=route53.RecordTarget.from_alias(
+                targets.ApiGatewayv2DomainProperties(
+                    domain_name.regional_domain_name,
+                    domain_name.regional_hosted_zone_id
                 )
-            ],
+            )
         )
 
-        # API Gateway HTTP API
-        http_api = apigateway.CfnApi(
-            self,
-            "MyHttpApi",
-            name="MyHttpApi",
-            protocol_type="HTTP",
-            cors_configuration={
-                "allowOrigins": ["*"],
-                "allowMethods": ["GET", "POST", "OPTIONS"],
-            },
+        # Outputs
+        CfnOutput(
+            self, "ApiGatewayUrl",
+            value=http_api.url if http_api.url else "undefined",
+            description="API Gateway URL"
         )
 
-        # Route linking API Gateway to NLB
-        apigateway.CfnIntegration(
-            self,
-            "NLBIntegration",
-            api_id=http_api.ref,
-            integration_type="HTTP_PROXY",
-            integration_uri=f"http://{nlb.load_balancer_dns_name}",
-            payload_format_version="1.0",
+        CfnOutput(
+            self, "CustomDomainUrl",
+            value=f"https://api.emisofia.com",
+            description="Custom Domain URL"
         )
 
-        # Add Default Stage
-        apigateway.CfnStage(
-            self,
-            "HttpApiStage",
-            api_id=http_api.ref,
-            stage_name="$default",
-            auto_deploy=True,
+        CfnOutput(
+            self, "NlbDnsName",
+            value=nlb.load_balancer_dns_name,
+            description="Network Load Balancer DNS Name"
         )
