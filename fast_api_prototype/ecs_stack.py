@@ -64,7 +64,6 @@ class ECSStack(Stack):
                     port=8000,
                     targets=[service],
                     health_check=elbv2.HealthCheck(
-                        path="/healthy",
                         interval=Duration.seconds(30),
                         timeout=Duration.seconds(5),
                     ),
