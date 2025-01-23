@@ -45,12 +45,12 @@ class ECSStack(Stack):
             memory_limit_mib=512,
             cpu=256,
             logging=ecs.LogDrivers.aws_logs(stream_prefix="MyFastApiApp"),
-            health_check={
-                "command": ["CMD-SHELL", "curl -f http://localhost:8000/healthy || exit 1"],
-                "interval": Duration.seconds(30),
-                "timeout": Duration.seconds(5),
-                "retries": 3
-            }
+            # health_check={
+            #     "command": ["CMD-SHELL", "curl -f http://localhost:8000/healthy || exit 1"],
+            #     "interval": Duration.seconds(30),
+            #     "timeout": Duration.seconds(5),
+            #     "retries": 3
+            # }
         )
         container.add_port_mappings(ecs.PortMapping(container_port=8000))
 
