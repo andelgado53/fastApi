@@ -3,8 +3,8 @@ from aws_cdk import (
     aws_ecs as ecs,
     aws_elasticloadbalancingv2 as elbv2,
     aws_certificatemanager as acm,
-    aws_apigatewayv2_alpha as apigateway,
-    aws_apigatewayv2_integrations_alpha as integrations_alpha,
+    aws_apigatewayv2 as apigateway,
+    aws_apigatewayv2_integrations as integrations,
     aws_route53 as route53,
     Duration,
     Stack,
@@ -52,6 +52,7 @@ class ECSStack(Stack):
         nlb = elbv2.NetworkLoadBalancer(
             self, "MyNLB", vpc=vpc, internet_facing=False
         )
+
         listener = nlb.add_listener(
             "Listener",
             port=80,
@@ -71,32 +72,45 @@ class ECSStack(Stack):
             ],
         )
 
-        # API Gateway Domain Name
-        domain_name = apigateway.DomainName(
+        domain_name = apigateway.CfnDomainName(
             self,
             "ApiGatewayDomain",
             domain_name="api.emisofia.com",
-            certificate=api_certificate,
+            domain_name_configurations=[
+                apigateway.CfnDomainName.DomainNameConfigurationProperty(
+                    certificate_arn=api_certificate.certificate_arn,
+                    endpoint_type="REGIONAL",
+                )
+            ],
         )
 
-        # API Gateway with Domain Mapping
-        http_api = apigateway.HttpApi(
+        # API Gateway HTTP API
+        http_api = apigateway.CfnApi(
             self,
             "MyHttpApi",
-            default_domain_mapping=apigateway.DomainMappingOptions(
-                domain_name=domain_name,
-            ),
+            name="MyHttpApi",
+            protocol_type="HTTP",
+            cors_configuration={
+                "allowOrigins": ["*"],
+                "allowMethods": ["GET", "POST", "OPTIONS"],
+            },
         )
 
-        # HTTP Integration to NLB
-        integration = integrations_alpha.HttpUrlIntegration(
+        # Route linking API Gateway to NLB
+        apigateway.CfnIntegration(
+            self,
             "NLBIntegration",
-            url=f"http://{nlb.load_balancer_dns_name}",
+            api_id=http_api.ref,
+            integration_type="HTTP_PROXY",
+            integration_uri=f"http://{nlb.load_balancer_dns_name}",
+            payload_format_version="1.0",
         )
 
-        # Add Routes to API Gateway
-        http_api.add_routes(
-            path="/{proxy+}",
-            methods=[apigateway.HttpMethod.GET, apigateway.HttpMethod.POST],
-            integration=integration,
+        # Add Default Stage
+        apigateway.CfnStage(
+            self,
+            "HttpApiStage",
+            api_id=http_api.ref,
+            stage_name="$default",
+            auto_deploy=True,
         )
