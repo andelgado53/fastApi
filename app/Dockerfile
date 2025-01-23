@@ -1,4 +1,4 @@
-FROM public.ecr.aws/docker/library/python:3.11-slim
+FROM public.ecr.aws/docker/library/python:3.11-buster
 
 # Set the working directory in the container
 WORKDIR /fastApiTest
