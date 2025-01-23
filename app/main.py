@@ -28,9 +28,10 @@ def root():
   	</style>
 	</head>
 	<body>
-  	<h1>This is not a bug. This is Emi</h1>
-  	<img src="https://emisofia.s3.us-west-2.amazonaws.com/emi_love_bug.jpg" alt="Image from S3">
-  	<p>Emi</p>
+	<h1>Emi is turning 5!!!</h1>
+	<video controls>
+  	<source src="https://emisofia.s3.us-west-2.amazonaws.com/Bluey-Emi-3550868620v2.mp4" type="video/mp4">
+	</video>
 	</body>
 	</html>
 	"""
