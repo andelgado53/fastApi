@@ -36,8 +36,6 @@ class ECSStack(Stack):
             ]
         )
 
-    
-
         # Lookup the hosted zone
         hosted_zone = route53.HostedZone.from_lookup(
             self, "HostedZone", domain_name="emisofia.com"
@@ -56,7 +54,7 @@ class ECSStack(Stack):
             memory_limit_mib=512,
             cpu=256
         )
-        
+
         container = task_definition.add_container(
             "FastApiContainer",
             image=ecs.ContainerImage.from_asset("./app"),
@@ -75,7 +73,7 @@ class ECSStack(Stack):
         # ECS Cluster and Service
         cluster = ecs.Cluster(self, "FastApiCluster", vpc=vpc)
 
-        # Add after creating the service
+        # ECS service security group
         service_security_group = ec2.SecurityGroup(
             self, "ServiceSecurityGroup",
             vpc=vpc,
@@ -83,21 +81,19 @@ class ECSStack(Stack):
         )
 
         service_security_group.add_ingress_rule(
-            peer=ec2.Peer.ipv4(vpc.vpc_cidr_block),
-        connection=ec2.Port.tcp(8000),
-        description="Allow TCP traffic for main communication"
+            peer=ec2.Peer.any_ipv4(),
+            connection=ec2.Port.tcp(8000),
+            description="Allow TCP traffic on port 8000"
         )
 
-        
         service = ecs.FargateService(
             self, "MyFargateService",
             cluster=cluster,
             task_definition=task_definition,
-            desired_count=1,  # Add desired count
+            desired_count=1,  
             vpc_subnets=ec2.SubnetSelection(subnet_type=ec2.SubnetType.PRIVATE_WITH_EGRESS),
             security_groups=[service_security_group]
         )
-
 
         # NLB Configuration
         nlb = elbv2.NetworkLoadBalancer(
@@ -112,12 +108,11 @@ class ECSStack(Stack):
             self, "EcsTargetGroup",
             vpc=vpc,
             port=8000,
-            protocol=elbv2.Protocol.TCP,
+            protocol=elbv2.Protocol.TCP,  # Use TCP for health check and communication
             targets=[service],
             health_check=elbv2.HealthCheck(
-                path="/healthy",
-                port="8000",
-                protocol=elbv2.Protocol.HTTP,  # Use HTTP protocol
+                port="8000",  # Ensure it's the right port your app is running on
+                protocol=elbv2.Protocol.TCP,  # TCP health check
                 interval=Duration.seconds(30),
                 healthy_threshold_count=2,
                 unhealthy_threshold_count=2
@@ -125,13 +120,7 @@ class ECSStack(Stack):
         )
 
         # Create VPC Link
-        vpc_link = apigateway.VpcLink(
-            self, "VpcLink",
-            vpc=vpc,
-            subnets=ec2.SubnetSelection(
-            subnet_type=ec2.SubnetType.PRIVATE_WITH_EGRESS
-            )
-        )
+        vpc_link = apigateway.VpcLink(self, "VpcLink", vpc=vpc)
 
         # Create HTTP API
         http_api = apigateway.HttpApi(self, "FastApiHttpApi", api_name="FastApiHttpApi")
@@ -144,14 +133,14 @@ class ECSStack(Stack):
             default_target_groups=[target_group]
         )
 
-        # Create the integration
+        # Integration
         integration = apigateway_integrations.HttpNlbIntegration(
             "NlbIntegration",
             listener=nlb_listener,
             vpc_link=vpc_link
         )
 
-        # Add routes with the integration
+        # Routes
         http_api.add_routes(
             path="/{proxy+}",
             methods=[apigateway.HttpMethod.ANY],
@@ -173,7 +162,7 @@ class ECSStack(Stack):
             stage=http_api.default_stage
         )
 
-        # DNS record for the API Gateway domain
+        # DNS record
         route53.ARecord(
             self, "ApiARecord",
             zone=hosted_zone,
