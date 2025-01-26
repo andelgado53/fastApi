@@ -9,14 +9,12 @@ class PipelineStack(Stack):
     def __init__(self, scope: Construct, id: str, **kwargs):
         super().__init__(scope, id, **kwargs)
 
-        # Define GitHub source connection
         source = pipelines.CodePipelineSource.connection(
-            "andelgado53/fastApi",  # Replace with your repo
+            "andelgado53/fastApi",
             "master",
             connection_arn="arn:aws:codeconnections:us-west-2:385249579775:connection/acd4b90d-7dfa-4f19-aad5-b68d9b524840"
         )
 
-        # Create the pipeline
         pipeline = pipelines.CodePipeline(
             self,
             "Pipeline",
@@ -25,15 +23,14 @@ class PipelineStack(Stack):
                 input=source,
                 commands=[
                     "pip install -r requirements.txt",
-                    "npm install -g aws-cdk",  # Install CDK CLI
-                    "which cdk",  # Verify that cdk is installed
-                    "cdk --version",  # Verify CDK version
-                    "cdk synth"  # Generate CloudFormation templates
+                    "npm install -g aws-cdk",
+                    "which cdk",
+                    "cdk --version",
+                    "cdk synth"
                 ],
             ),
         )
 
-        # Add the ECS deployment stage
         pipeline.add_stage(ECSDeploymentStage(self, "DeployECS", **kwargs))
 
 class ECSDeploymentStage(Stage):
