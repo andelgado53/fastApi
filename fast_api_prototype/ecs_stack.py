@@ -132,6 +132,16 @@ class ECSStack(Stack):
             auto_verify=cognito.AutoVerifiedAttrs(email=True),  # Auto-verify email
             standard_attributes={
                 "email": cognito.StandardAttribute(required=True, mutable=False),
+            },
+            custom_attributes={
+                "role": cognito.StringAttribute(
+                    mutable=False,
+                    max_len=25
+                ),
+                "org": cognito.StringAttribute(
+                    mutable=False,
+                    max_len=50
+                )
             }
         )
 
@@ -151,7 +161,15 @@ class ECSStack(Stack):
                 scopes=[cognito.OAuthScope.OPENID]
                 # callback_urls=["http://localhost:3000"],  # Add your callback URLs
                 # logout_urls=["http://localhost:3000"]     # Add your logout URLs
-            )
+            ),
+            read_attributes=cognito.ClientAttributes()
+                .with_standard_attributes(
+                    email=True
+                )
+                .with_custom_attributes(
+                    "role",
+                    "org"
+                )
         )
 
         # Create Cognito Authorizer
