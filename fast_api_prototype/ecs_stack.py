@@ -174,8 +174,6 @@ class ECSStack(Stack):
             ),
             read_attributes=cognito.ClientAttributes()
                 .with_standard_attributes(email=True)
-                .with_custom_attributes("role", "org"),
-            write_attributes=cognito.ClientAttributes()
                 .with_custom_attributes("role", "org")
         )
 
