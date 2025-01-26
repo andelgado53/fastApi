@@ -158,10 +158,10 @@ class ECSStack(Stack):
                     authorization_code_grant=True,
                     implicit_code_grant=False
                 ),
-                scopes=[cognito.OAuthScope.OPENID],
+                scopes=[cognito.OAuthScope.OPENID,
                     cognito.OAuthScope.PROFILE,  # Add profile scope
                     cognito.OAuthScope.custom("role"),  # Add custom scopes for custom attributes
-                    cognito.OAuthScope.custom("org")
+                    cognito.OAuthScope.custom("org")]
                     # callback_urls=["http://localhost:3000"],  # Add your callback URLs
                     # logout_urls=["http://localhost:3000"]     # Add your logout URLs
             ),
