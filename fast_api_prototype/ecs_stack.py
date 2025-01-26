@@ -124,6 +124,13 @@ class ECSStack(Stack):
         # Create VPC Link
         vpc_link = apigateway.VpcLink(self, "VpcLink", vpc=vpc)
 
+        # pre_token_generation_lambda = aws_lambda.Function(
+        #     self, "PreTokenGenerationLambda",
+        #     runtime=aws_lambda.Runtime.PYTHON_3_9,
+        #     handler="index.lambda_handler",
+        #     code=aws_lambda.Code.from_asset("./lambda"),  # Directory containing your lambda code
+        # )
+
         user_pool = cognito.UserPool(
             self, "FastApiUserPool",
             user_pool_name="FastApiUserPool",
@@ -142,7 +149,10 @@ class ECSStack(Stack):
                     mutable=False,
                     max_len=50
                 )
-            }
+            },
+            # lambda_triggers=cognito.UserPoolTriggers(
+            #     pre_token_generation=pre_token_generation_lambda
+            # )
         )
 
         # Create User Pool Client
@@ -158,21 +168,15 @@ class ECSStack(Stack):
                     authorization_code_grant=True,
                     implicit_code_grant=False
                 ),
-                scopes=[cognito.OAuthScope.OPENID,
-                    cognito.OAuthScope.PROFILE,  # Add profile scope
-                    cognito.OAuthScope.custom("role"),  # Add custom scopes for custom attributes
-                    cognito.OAuthScope.custom("org")]
+                scopes=[cognito.OAuthScope.OPENID, cognito.OAuthScope.PROFILE]
                     # callback_urls=["http://localhost:3000"],  # Add your callback URLs
                     # logout_urls=["http://localhost:3000"]     # Add your logout URLs
             ),
             read_attributes=cognito.ClientAttributes()
-                .with_standard_attributes(
-                    email=True
-                )
-                .with_custom_attributes(
-                    "role",
-                    "org"
-                )
+                .with_standard_attributes(email=True)
+                .with_custom_attributes("role", "org"),
+            write_attributes=cognito.ClientAttributes()
+                .with_custom_attributes("role", "org")
         )
 
         # Create Cognito Authorizer
