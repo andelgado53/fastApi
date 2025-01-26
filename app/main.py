@@ -1,8 +1,11 @@
-from fastapi import FastAPI, Request, HTTPException
+from fastapi import FastAPI, Request, HTTPException, Depends
+from fastapi.security import OAuth2PasswordBearer
 from jose import jwt
 import requests
 
 from fastapi.middleware.cors import CORSMiddleware
+
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
 app = FastAPI()
 
@@ -23,25 +26,18 @@ COGNITO_PUBLIC_KEYS_URL = f"https://cognito-idp.us-west-2.amazonaws.com/{USER_PO
 keys = requests.get(COGNITO_PUBLIC_KEYS_URL).json()
 
 def decode_token(token: str):
-    header = jwt.get_unverified_header(token)
-    key = next(
-        (key for key in keys['keys'] if key['kid'] == header['kid']), 
-        None
-    )
-    if not key:
-        raise HTTPException(status_code=401, detail="Invalid token header")
-    
-    # Decode and validate token
-    return jwt.decode(
-        token,
-        key=key,
-        algorithms=["RS256"],
-        audience=CLIENT_ID,  # Replace with your app client ID
-        issuer=f"https://cognito-idp.us-west-2.amazonaws.com/{USER_POOL_ID}"
-    )
+    try:
+        payload = jwt.decode(token, options={"verify_signature": False})  # Replace with signature verification
+        return payload
+    except jwt.JWTError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired token",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
 
 @app.get("/")
-def root(request: Request):
+def root(token: str = Depends(oauth2_scheme)):
     auth_header = request.headers.get("Authorization")
     if not auth_header:
         raise HTTPException(status_code=401, detail="Authorization header missing")
@@ -49,7 +45,7 @@ def root(request: Request):
     token = auth_header.split(" ")[1]  # Extract Bearer token
     try:
         claims = decode_token(token)
-        return { "message": "Emi is loved.", "data": claims}
+        return { "message": "Emi is loved.", "context": claims}
     except Exception as e:
         raise HTTPException(status_code=401, detail=f"Invalid token: {str(e)}")
 	
