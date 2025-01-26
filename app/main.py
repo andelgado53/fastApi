@@ -49,7 +49,7 @@ def root(request: Request):
     token = auth_header.split(" ")[1]  # Extract Bearer token
     try:
         claims = decode_token(token)
-        return { "message": "Emi is loved.", "data": "claims"}
+        return { "message": "Emi is loved.", "data": cliams}
     except Exception as e:
         raise HTTPException(status_code=401, detail=f"Invalid token: {str(e)}")
 	
