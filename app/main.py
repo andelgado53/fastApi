@@ -38,14 +38,8 @@ def decode_token(token: str):
 
 @app.get("/")
 def root(token: str = Depends(oauth2_scheme)):
-    auth_header = request.headers.get("Authorization")
-    if not auth_header:
-        raise HTTPException(status_code=401, detail="Authorization header missing")
-    
-    token = auth_header.split(" ")[1]  # Extract Bearer token
-    try:
-        claims = decode_token(token)
-        return { "message": "Emi is loved.", "context": claims}
+    claims = decode_token(token)
+    return { "message": "Emi is loved.", "context": claims}
     except Exception as e:
         raise HTTPException(status_code=401, detail=f"Invalid token: {str(e)}")
 	
