@@ -9,6 +9,8 @@ from aws_cdk import (
     aws_route53_targets as targets,
     Duration,
     Stack,
+    aws_cognito as cognito,
+    aws_apigatewayv2_authorizers as apigateway_authorizers,
     CfnOutput
 )
 from constructs import Construct
@@ -122,6 +124,44 @@ class ECSStack(Stack):
         # Create VPC Link
         vpc_link = apigateway.VpcLink(self, "VpcLink", vpc=vpc)
 
+        user_pool = cognito.UserPool(
+            self, "FastApiUserPool",
+            user_pool_name="FastApiUserPool",
+            self_sign_up_enabled=True,  # Enable user sign-up
+            sign_in_aliases=cognito.SignInAliases(email=True, username=True),
+            auto_verify=cognito.AutoVerifiedAttrs(email=True),  # Auto-verify email
+            standard_attributes={
+                "email": cognito.StandardAttribute(required=True, mutable=False),
+            }
+        )
+
+        # Create User Pool Client
+        
+        user_pool_client = user_pool.add_client(
+            "FastApiUserPoolClient",
+            auth_flows=cognito.AuthFlow(
+                user_password=True,  # Enable user-password flow
+                user_srp=True       # Enable SRP (Secure Remote Password) protocol
+            ),
+            o_auth=cognito.OAuthSettings(
+                flows=cognito.OAuthFlows(
+                    authorization_code_grant=True,
+                    implicit_code_grant=False
+                ),
+                scopes=[cognito.OAuthScope.OPENID]
+                # callback_urls=["http://localhost:3000"],  # Add your callback URLs
+                # logout_urls=["http://localhost:3000"]     # Add your logout URLs
+            )
+        )
+
+        # Create Cognito Authorizer
+        cognito_authorizer = apigateway_authorizers.HttpJwtAuthorizer(
+            "FastApiCognitoAuthorizer",
+            jwt_issuer=f"https://cognito-idp.{Stack.of(self).region}.amazonaws.com/{user_pool.user_pool_id}",
+            jwt_audience=[user_pool_client.user_pool_client_id], 
+            identity_source=["$request.header.Authorization"]  # Authorization header
+        )   
+
         # Create HTTP API
         http_api = apigateway.HttpApi(self, "FastApiHttpApi", api_name="FastApiHttpApi")
 
@@ -144,7 +184,8 @@ class ECSStack(Stack):
         http_api.add_routes(
             path="/{proxy+}",
             methods=[apigateway.HttpMethod.ANY],
-            integration=integration
+            integration=integration,
+            authorizer=cognito_authorizer
         )
 
         # Custom domain configuration
@@ -192,4 +233,16 @@ class ECSStack(Stack):
             self, "NlbDnsName",
             value=nlb.load_balancer_dns_name,
             description="Network Load Balancer DNS Name"
+        )
+
+        CfnOutput(
+            self, "UserPoolId",
+            value=user_pool.user_pool_id,
+            description="Cognito User Pool ID"
+        )
+
+        CfnOutput(
+            self, "UserPoolClientId",
+            value=user_pool_client.user_pool_client_id,
+            description="Cognito User Pool Client ID"
         )
