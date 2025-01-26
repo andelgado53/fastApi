@@ -47,9 +47,7 @@ def root(request: Request):
     print('this is the bearer token:')
     print(token)
     claims = decode_token(token)
-    return { "message": "Emi is loved.", "context": claims}
-    except Exception as e:
-        raise HTTPException(status_code=401, detail=f"Invalid token: {str(e)}")
+    return { "message": "Emi is loved.", "context": str(claims)}
 	
 
 @app.get("/healthy")
