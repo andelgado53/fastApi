@@ -26,15 +26,22 @@ COGNITO_PUBLIC_KEYS_URL = f"https://cognito-idp.us-west-2.amazonaws.com/{USER_PO
 keys = requests.get(COGNITO_PUBLIC_KEYS_URL).json()
 
 def decode_token(token: str):
-    try:
-        payload = jwt.decode(token, options={"verify_signature": False})  # Replace with signature verification
-        return payload
-    except jwt.JWTError:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid or expired token",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
+    header = jwt.get_unverified_header(token)
+    key = next(
+        (key for key in keys['keys'] if key['kid'] == header['kid']), 
+        None
+    )
+    if not key:
+        raise HTTPException(status_code=401, detail="Invalid token header")
+    
+    # Decode and validate token
+    return jwt.decode(
+        token,
+        key=key,
+        algorithms=["RS256"],
+        audience=CLIENT_ID,  # Replace with your app client ID
+        issuer=f"https://cognito-idp.us-west-2.amazonaws.com/{USER_POOL_ID}"
+    )
 
 @app.get("/")
 def root(request: Request):
