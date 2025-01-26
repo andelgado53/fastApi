@@ -85,7 +85,7 @@ class ECSStack(Stack):
         service_security_group.add_ingress_rule(
             peer=ec2.Peer.any_ipv4(),
             connection=ec2.Port.tcp(8000),
-            description="Allow HTTP traffic"
+            description="Allow TCP traffic on port 8000"
         )
 
         service = ecs.FargateService(
@@ -105,19 +105,12 @@ class ECSStack(Stack):
             cross_zone_enabled=True
         )
 
-        # # Create certificate for NLB
-        # nlb_certificate = acm.Certificate(
-        #     self, "NLBCertificate",
-        #     domain_name="api.emisofia.com",  # Internal domain for NLB
-        #     validation=acm.CertificateValidation.from_dns(hosted_zone)
-        # )
-
         # Target Group
         target_group = elbv2.NetworkTargetGroup(
             self, "EcsTargetGroup",
             vpc=vpc,
             port=8000,
-            protocol=elbv2.Protocol.TCP,
+            protocol=elbv2.Protocol.TCP,  # Use TCP for health check and communication
             targets=[service],
             health_check=elbv2.HealthCheck(
                 port="8000",  # Ensure it's the right port your app is running on
@@ -175,9 +168,8 @@ class ECSStack(Stack):
         # NLB Listener
         nlb_listener = nlb.add_listener(
             "Listener",
-            port=443,
-            protocol=elbv2.Protocol.TLS,
-            certificates=[api_certificate],
+            port=80,
+            protocol=elbv2.Protocol.TCP,
             default_target_groups=[target_group]
         )
 
