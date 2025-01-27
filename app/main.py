@@ -19,8 +19,8 @@ app.add_middleware(
 
 
 # Replace with your User Pool ID and Client ID
-USER_POOL_ID = "us-west-2_eh0GmvqRD"
-CLIENT_ID = "7lq155jn8debntq7mieosmeish"
+USER_POOL_ID = "us-west-2_TCKuweOar"
+CLIENT_ID = "5qr3335bem5aoqls1qvr7ee16r"
 
 COGNITO_PUBLIC_KEYS_URL = f"https://cognito-idp.us-west-2.amazonaws.com/{USER_POOL_ID}/.well-known/jwks.json"
 keys = requests.get(COGNITO_PUBLIC_KEYS_URL).json()
