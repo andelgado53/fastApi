@@ -11,7 +11,7 @@ from aws_cdk import (
     Stack,
     aws_cognito as cognito,
     aws_apigatewayv2_authorizers as apigateway_authorizers,
-    CfnOutput
+    CfnOutput, aws_lambda
 )
 from constructs import Construct
 
@@ -124,12 +124,12 @@ class ECSStack(Stack):
         # Create VPC Link
         vpc_link = apigateway.VpcLink(self, "VpcLink", vpc=vpc)
 
-        # pre_token_generation_lambda = aws_lambda.Function(
-        #     self, "PreTokenGenerationLambda",
-        #     runtime=aws_lambda.Runtime.PYTHON_3_9,
-        #     handler="index.lambda_handler",
-        #     code=aws_lambda.Code.from_asset("./lambda"),  # Directory containing your lambda code
-        # )
+        pre_token_generation_lambda = aws_lambda.Function(
+            self, "PreTokenGenerationLambda",
+            runtime=aws_lambda.Runtime.PYTHON_3_13,
+            handler="index.lambda_handler",
+            code=aws_lambda.Code.from_asset("./lambda"),  # Directory containing your lambda code
+        )
 
         user_pool = cognito.UserPool(
             self, "FastApiUserPool",
@@ -150,10 +150,12 @@ class ECSStack(Stack):
                     max_len=50
                 )
             },
-            # lambda_triggers=cognito.UserPoolTriggers(
-            #     pre_token_generation=pre_token_generation_lambda
-            # )
+            lambda_triggers=cognito.UserPoolTriggers(
+                pre_token_generation=pre_token_generation_lambda
+            )
         )
+
+
 
         # Create User Pool Client
         
@@ -172,6 +174,9 @@ class ECSStack(Stack):
                     # callback_urls=["http://localhost:3000"],  # Add your callback URLs
                     # logout_urls=["http://localhost:3000"]     # Add your logout URLs
             ),
+            access_token_validity=Duration.minutes(60),  # Set Access Token validity
+            id_token_validity=Duration.hours(1),         # Set ID Token validity
+            refresh_token_validity=Duration.days(30),  
             read_attributes=cognito.ClientAttributes()
                 .with_standard_attributes(email=True)
                 .with_custom_attributes("role", "org")
